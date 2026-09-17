@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MyTransformer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --red: #981515;
+            --red-dark: #7a1111;
+            --nm-bg: #e8e8ed;
+            --nm-shadow-dark: rgba(163, 163, 170, 0.55);
+            --nm-shadow-light: rgba(255, 255, 255, 0.85);
+            --nm-dark-bg: #1c1c1e;
+            --nm-dark-shadow-dark: rgba(0, 0, 0, 0.45);
+            --nm-dark-shadow-light: rgba(255, 255, 255, 0.04);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            background: linear-gradient(145deg, #e8e8ed 0%, #d5d5dc 100%);
+        }
+        body.mode-finished { background: linear-gradient(145deg, #121214 0%, #1a1a1e 100%); }
+
+        .app {
+            max-width: 1200px; width: 100%;
+            height: 90vh; max-height: 820px;
+            border-radius: 52px; padding: 28px 32px;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        body:not(.mode-finished) .app {
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(44px) saturate(180%);
+            -webkit-backdrop-filter: blur(44px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        }
+        body.mode-finished .app {
+            background: rgba(20, 20, 22, 0.15);
+            backdrop-filter: blur(36px) saturate(140%);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        }
+
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0; padding-bottom: 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        body.mode-finished .header { border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+
+        .logo h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.8px; }
+        body:not(.mode-finished) .logo h1 { color: #1c1c1e; }
+        body.mode-finished .logo h1 { color: #f5f5f7; }
+
+        .header-right { display: flex; align-items: center; gap: 14px; }
+
+        .btn-new, .btn-trash-icon, .btn-user {
+            width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px; background: var(--nm-bg);
+            box-shadow: 5px 5px 10px var(--nm-shadow-dark), -5px -5px 10px var(--nm-shadow-light), inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+            position: relative; transition: all 0.2s ease;
+        }
+        .btn-new { color: var(--red); font-size: 17px; }
+        .btn-new:hover { color: #fff; background: var(--red); transform: rotate(90deg) scale(1.05); }
+        .btn-new:active {
+            transform: rotate(90deg) scale(0.97);
+            box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.2), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-trash-icon { color: #8e8e93; }
+        .btn-trash-icon:hover { color: var(--red); transform: scale(1.05); }
+        .btn-trash-icon:active {
+            transform: scale(0.97);
+            box-shadow: inset 4px 4px 8px var(--nm-shadow-dark), inset -4px -4px 8px var(--nm-shadow-light);
+        }
+        .btn-trash-icon.has-items::after {
+            content: ''; position: absolute; top: 3px; right: 3px;
+            width: 9px; height: 9px; background: var(--red); border-radius: 50%;
+            border: 2px solid var(--nm-bg);
+        }
+
+        .btn-user { color: #8e8e93; font-size: 14px; }
+        .btn-user:hover { color: var(--red); transform: scale(1.05); }
+        .btn-user.logged-in { color: var(--red); background: var(--red); color: #fff; }
+
+        body.mode-finished .btn-new,
+        body.mode-finished .btn-trash-icon,
+        body.mode-finished .btn-user {
+            background: var(--nm-dark-bg); color: #8e8e93;
+            box-shadow: 4px 4px 10px var(--nm-dark-shadow-dark), -4px -4px 10px var(--nm-dark-shadow-light);
+        }
+        body.mode-finished .btn-new:hover { background: var(--red); color: #fff; }
+        body.mode-finished .btn-trash-icon:hover { color: #f5f5f7; }
+        body.mode-finished .btn-user:hover { color: #f5f5f7; }
+        body.mode-finished .btn-trash-icon.has-items::after { border-color: var(--nm-dark-bg); }
+
+        .mode-switcher {
+            display: flex; gap: 12px; flex-shrink: 0;
+            margin: 18px 0 14px 0; padding: 6px; border-radius: 60px;
+            background: var(--nm-bg);
+            box-shadow: inset 4px 4px 8px var(--nm-shadow-dark), inset -4px -4px 8px var(--nm-shadow-light);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        body.mode-finished .mode-switcher {
+            background: var(--nm-dark-bg);
+            box-shadow: inset 3px 3px 6px var(--nm-dark-shadow-dark), inset -3px -3px 6px var(--nm-dark-shadow-light);
+            border-color: rgba(255, 255, 255, 0.03);
+        }
+        .mode-btn {
+            flex: 1; padding: 14px 20px; border-radius: 60px; border: none;
+            font-size: 17px; font-weight: 600; font-family: 'Inter', sans-serif;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            gap: 10px; background: transparent; transition: all 0.25s ease; position: relative;
+        }
+        body:not(.mode-finished) .mode-btn { color: #8e8e93; }
+        body.mode-finished .mode-btn { color: #636366; }
+        body:not(.mode-finished) .mode-btn.active {
+            background: var(--nm-bg); color: #1c1c1e;
+            box-shadow: 4px 4px 8px var(--nm-shadow-dark), -4px -4px 8px var(--nm-shadow-light);
+        }
+        body.mode-finished .mode-btn.active {
+            background: var(--nm-dark-bg); color: #f5f5f7;
+            box-shadow: 3px 3px 6px var(--nm-dark-shadow-dark), -3px -3px 6px var(--nm-dark-shadow-light);
+        }
+        .mode-btn.active i { color: var(--red); }
+        .mode-btn:not(.active):hover { color: #1c1c1e; opacity: 0.8; }
+        body.mode-finished .mode-btn:not(.active):hover { color: #f5f5f7; }
+
+        .toolbar {
+            display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0; gap: 16px; flex-wrap: wrap; margin-bottom: 12px;
+        }
+        .toolbar-left { display: flex; align-items: center; gap: 12px; flex: 1; flex-wrap: wrap; }
+        .toolbar-right { display: flex; align-items: center; gap: 10px; }
+
+        .search-wrap { position: relative; flex: 1; max-width: 260px; min-width: 130px; }
+        .search-wrap i {
+            position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 14px;
+        }
+        body:not(.mode-finished) .search-wrap i { color: #8e8e93; }
+        body.mode-finished .search-wrap i { color: #636366; }
+        .search-wrap input {
+            width: 100%; padding: 10px 16px 10px 40px; border-radius: 40px;
+            font-size: 14px; font-family: 'Inter', sans-serif; outline: none;
+            transition: all 0.25s ease;
+            background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 0, 0, 0.04); color: #1c1c1e;
+        }
+        body.mode-finished .search-wrap input {
+            background: rgba(255, 255, 255, 0.02);
+            border-color: rgba(255, 255, 255, 0.04); color: #f5f5f7;
+        }
+        body.mode-finished .search-wrap input::placeholder { color: #636366; }
+        .search-wrap input:focus {
+            border-color: rgba(152, 21, 21, 0.2);
+            box-shadow: 0 0 0 4px rgba(152, 21, 21, 0.04);
+        }
+
+        .tag-group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .tag-chip {
+            padding: 6px 16px; border-radius: 30px; font-size: 12px; font-weight: 600;
+            cursor: pointer; border: none; letter-spacing: 0.2px; transition: all 0.2s ease;
+            background: var(--nm-bg); color: #636366;
+            box-shadow: 3px 3px 6px var(--nm-shadow-dark), -3px -3px 6px var(--nm-shadow-light);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .tag-chip:hover { color: var(--red); transform: translateY(-1px); }
+        .tag-chip:active {
+            box-shadow: inset 2px 2px 5px var(--nm-shadow-dark), inset -2px -2px 5px var(--nm-shadow-light);
+        }
+        body.mode-finished .tag-chip {
+            background: var(--nm-dark-bg); color: #8e8e93;
+            box-shadow: 2px 2px 5px var(--nm-dark-shadow-dark), -2px -2px 5px var(--nm-dark-shadow-light);
+            border-color: rgba(255, 255, 255, 0.03);
+        }
+        .tag-chip.active {
+            background: var(--red) !important; color: #fff !important;
+            box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.25), inset -3px -3px 6px rgba(255, 255, 255, 0.08) !important;
+            border-color: rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .sort-select {
+            padding: 7px 14px; border-radius: 40px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(8px);
+            font-size: 12px; font-weight: 500; font-family: 'Inter', sans-serif;
+            color: #1c1c1e; cursor: pointer; outline: none; transition: all 0.25s ease;
+        }
+        body.mode-finished .sort-select {
+            border-color: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.02); color: #f5f5f7;
+        }
+        .sort-select:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(152, 21, 21, 0.1); }
+
+        .content { flex: 1; overflow-y: auto; padding: 8px 0 4px 0; }
+        .content::-webkit-scrollbar { width: 4px; }
+        .content::-webkit-scrollbar-thumb { border-radius: 20px; }
+        body:not(.mode-finished) .content::-webkit-scrollbar-thumb { background: #c6c6c8; }
+        body.mode-finished .content::-webkit-scrollbar-thumb { background: #3a3a3c; }
+
+        .card-grid {
+            display: flex; flex-wrap: wrap; gap: 20px;
+            padding: 6px 4px 4px 4px; align-items: flex-start;
+        }
+
+        .card {
+            flex: 0 0 calc(25% - 20px); min-width: 180px; max-width: 100%;
+            border-radius: 24px; padding: 20px 20px 16px 20px;
+            display: flex; flex-direction: column; position: relative;
+            transition: all 0.25s ease;
+        }
+        body:not(.mode-finished) .card {
+            background: rgba(255, 255, 255, 0.28);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            box-shadow: 4px 4px 10px rgba(163, 163, 170, 0.25), -4px -4px 10px rgba(255, 255, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        }
+        body:not(.mode-finished) .card:hover {
+            background: rgba(255, 255, 255, 0.38); transform: translateY(-3px);
+            box-shadow: 7px 7px 16px rgba(163, 163, 170, 0.3), -7px -7px 16px rgba(255, 255, 255, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+        body.mode-finished .card {
+            background: var(--nm-dark-bg);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 4px 4px 10px var(--nm-dark-shadow-dark), -4px -4px 10px var(--nm-dark-shadow-light);
+        }
+        body.mode-finished .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 6px 6px 14px var(--nm-dark-shadow-dark), -6px -6px 14px var(--nm-dark-shadow-light);
+        }
+        .card::before {
+            content: ''; position: absolute; left: 0; top: 16%; height: 68%; width: 3px;
+            background: var(--red); border-radius: 0 4px 4px 0; opacity: 0.3; transition: opacity 0.25s;
+        }
+        .card:hover::before { opacity: 1; }
+
+        .card-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            gap: 10px; margin-bottom: 2px;
+        }
+        .card-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.3; }
+        body:not(.mode-finished) .card-title { color: #1c1c1e; }
+        body.mode-finished .card-title { color: #f5f5f7; }
+
+        .card-tags-row { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 6px 0; }
+        .card-tag {
+            font-size: 10px; font-weight: 600; text-transform: uppercase;
+            padding: 3px 10px; border-radius: 30px; letter-spacing: 0.2px;
+        }
+        body:not(.mode-finished) .card-tag {
+            background: rgba(255, 255, 255, 0.35); backdrop-filter: blur(8px);
+            color: #636366; border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 2px 2px 4px rgba(163, 163, 170, 0.2), -2px -2px 4px rgba(255, 255, 255, 0.5);
+        }
+        body.mode-finished .card-tag {
+            background: var(--nm-dark-bg); color: #8e8e93;
+            box-shadow: 1px 1px 3px var(--nm-dark-shadow-dark), -1px -1px 3px var(--nm-dark-shadow-light);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .card-desc {
+            font-size: 12px; font-weight: 400; line-height: 1.6;
+            opacity: 0.75; margin: 2px 0 0 0; flex: 1;
+        }
+        body:not(.mode-finished) .card-desc { color: #3a3a3c; }
+        body.mode-finished .card-desc { color: #aeaeb2; }
+
+        .card-meta {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 11px; padding-top: 10px; margin-top: 10px;
+        }
+        body:not(.mode-finished) .card-meta { color: #8e8e93; border-top: 1px solid rgba(0, 0, 0, 0.06); }
+        body.mode-finished .card-meta { color: #636366; border-top: 1px solid rgba(255, 255, 255, 0.04); }
+        .card-meta i { margin-right: 4px; }
+
+        .card-actions { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; }
+        body:not(.mode-finished) .card-actions { border-top: 1px solid rgba(0, 0, 0, 0.06); }
+        body.mode-finished .card-actions { border-top: 1px solid rgba(255, 255, 255, 0.04); }
+
+        .btn-convert, .btn-reuse, .btn-delete {
+            padding: 5px 14px; border-radius: 30px; border: none;
+            font-size: 11px; font-weight: 600; font-family: 'Inter', sans-serif;
+            cursor: pointer; transition: all 0.2s ease;
+            white-space: nowrap; display: inline-flex; align-items: center; gap: 5px;
+            justify-content: center;
+        }
+        body:not(.mode-finished) .btn-convert,
+        body:not(.mode-finished) .btn-reuse,
+        body:not(.mode-finished) .btn-delete {
+            background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 2px 2px 5px rgba(163, 163, 170, 0.25), -2px -2px 5px rgba(255, 255, 255, 0.6);
+        }
+        body.mode-finished .btn-convert,
+        body.mode-finished .btn-reuse,
+        body.mode-finished .btn-delete {
+            background: var(--nm-dark-bg);
+            box-shadow: 2px 2px 5px var(--nm-dark-shadow-dark), -2px -2px 5px var(--nm-dark-shadow-light);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        .btn-convert, .btn-reuse { color: var(--red); }
+        .btn-convert:hover, .btn-reuse:hover { background: var(--red); color: #fff; }
+        .btn-delete { color: #8e8e93; }
+        .btn-delete:hover { color: #1c1c1e; }
+        body.mode-finished .btn-delete:hover { color: #f5f5f7; }
+
+        /* 弹窗 */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0, 0, 0, 0.25); backdrop-filter: blur(16px);
+            display: flex; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-overlay.hidden { display: none; }
+
+        .modal {
+            border-radius: 32px; padding: 28px 32px 24px 32px;
+            max-width: 560px; width: 92%; max-height: 85vh;
+            display: flex; flex-direction: column;
+        }
+        body:not(.mode-finished) .modal {
+            background: rgba(255, 255, 255, 0.55);
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 12px 12px 28px rgba(163, 163, 170, 0.3), -12px -12px 28px rgba(255, 255, 255, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        }
+        body.mode-finished .modal {
+            background: var(--nm-dark-bg);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 8px 8px 20px var(--nm-dark-shadow-dark), -8px -8px 20px var(--nm-dark-shadow-light);
+        }
+
+        .editor-toolbar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 8px 10px; margin-bottom: 14px; border-radius: 16px;
+            flex-wrap: wrap; flex-shrink: 0;
+        }
+        body:not(.mode-finished) .editor-toolbar {
+            background: rgba(255, 255, 255, 0.3); border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        body.mode-finished .editor-toolbar {
+            background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .tool-btn {
+            width: 34px; height: 34px; border-radius: 10px; border: none;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; background: transparent; color: #636366; transition: all 0.2s ease;
+        }
+        body.mode-finished .tool-btn { color: #8e8e93; }
+        .tool-btn:hover { background: rgba(255, 255, 255, 0.5); color: #1c1c1e; }
+        body.mode-finished .tool-btn:hover { background: rgba(255, 255, 255, 0.06); color: #f5f5f7; }
+        .tool-divider { width: 1px; height: 20px; margin: 0 4px; background: rgba(0, 0, 0, 0.08); }
+        body.mode-finished .tool-divider { background: rgba(255, 255, 255, 0.08); }
+
+        .format-switch { display: flex; gap: 4px; padding: 3px; border-radius: 10px; margin-right: 6px; }
+        body:not(.mode-finished) .format-switch { background: rgba(0, 0, 0, 0.04); }
+        body.mode-finished .format-switch { background: rgba(255, 255, 255, 0.04); }
+        .format-btn {
+            padding: 5px 12px; border-radius: 8px; border: none;
+            font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif;
+            cursor: pointer; background: transparent; color: #8e8e93; transition: all 0.2s ease;
+        }
+        .format-btn.active { background: #fff; color: #1c1c1e; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
+        body.mode-finished .format-btn.active { background: rgba(255, 255, 255, 0.1); color: #f5f5f7; }
+
+        .editor-area { flex: 1; overflow-y: auto; margin-bottom: 16px; min-height: 200px; padding: 4px; }
+        .editor-area::-webkit-scrollbar { width: 4px; }
+        .editor-area::-webkit-scrollbar-thumb { border-radius: 20px; }
+        body:not(.mode-finished) .editor-area::-webkit-scrollbar-thumb { background: #c6c6c8; }
+        body.mode-finished .editor-area::-webkit-scrollbar-thumb { background: #3a3a3c; }
+
+        .editor-content {
+            outline: none; font-size: 14px; line-height: 1.7;
+            min-height: 180px; padding: 8px 4px; color: #1c1c1e;
+        }
+        body.mode-finished .editor-content { color: #f5f5f7; }
+        .editor-content:empty::before { content: attr(data-placeholder); color: #aeaeb2; pointer-events: none; }
+        body.mode-finished .editor-content:empty::before { color: #636366; }
+        .editor-content:focus { outline: none; }
+        .editor-content img { max-width: 100%; border-radius: 12px; margin: 8px 0; display: block; }
+        .editor-content a { color: var(--red); text-decoration: underline; }
+        .editor-content h1 {
+            font-size: 24px; font-weight: 800; letter-spacing: -0.5px;
+            margin: 12px 0 8px 0; line-height: 1.3;
+        }
+        .editor-content s, .editor-content strike { opacity: 0.6; }
+
+        .tag-editor { margin-bottom: 16px; flex-shrink: 0; }
+        .tag-editor-label {
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.6px; margin-bottom: 8px;
+        }
+        body:not(.mode-finished) .tag-editor-label { color: #8e8e93; }
+        body.mode-finished .tag-editor-label { color: #636366; }
+
+        .tag-editor-box {
+            display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px;
+            border-radius: 14px; min-height: 44px; align-items: center;
+        }
+        body:not(.mode-finished) .tag-editor-box {
+            background: rgba(255, 255, 255, 0.4); border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+        body.mode-finished .tag-editor-box {
+            background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .tag-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 10px 4px 12px; border-radius: 30px;
+            font-size: 11px; font-weight: 600; background: var(--red); color: #fff;
+        }
+        .tag-pill .tag-remove {
+            cursor: pointer; opacity: 0.7; font-size: 10px;
+            display: flex; align-items: center; justify-content: center;
+            width: 14px; height: 14px; border-radius: 50%; transition: all 0.2s ease;
+        }
+        .tag-pill .tag-remove:hover { opacity: 1; background: rgba(255, 255, 255, 0.2); }
+
+        .tag-input {
+            flex: 1; min-width: 80px; border: none; outline: none;
+            background: transparent; font-size: 12px; font-family: 'Inter', sans-serif;
+            color: #1c1c1e; padding: 4px;
+        }
+        body.mode-finished .tag-input { color: #f5f5f7; }
+        body.mode-finished .tag-input::placeholder { color: #636366; }
+
+        .modal-actions { display: flex; gap: 12px; justify-content: flex-end; flex-shrink: 0; }
+        .modal-btn {
+            padding: 11px 28px; border-radius: 40px; border: none;
+            font-size: 14px; font-weight: 600; font-family: 'Inter', sans-serif;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        body:not(.mode-finished) .modal-btn-cancel {
+            background: rgba(255, 255, 255, 0.5); color: #8e8e93;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 3px 3px 6px rgba(163, 163, 170, 0.2), -3px -3px 6px rgba(255, 255, 255, 0.5);
+        }
+        body.mode-finished .modal-btn-cancel {
+            background: var(--nm-dark-bg); color: #8e8e93;
+            box-shadow: 2px 2px 5px var(--nm-dark-shadow-dark), -2px -2px 5px var(--nm-dark-shadow-light);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        .modal-btn-cancel:hover { color: #1c1c1e; }
+        body.mode-finished .modal-btn-cancel:hover { color: #f5f5f7; }
+
+        .modal-btn-confirm {
+            background: var(--red); color: #fff;
+            box-shadow: 5px 5px 12px rgba(152, 21, 21, 0.3), -3px -3px 8px rgba(255, 255, 255, 0.5);
+        }
+        body.mode-finished .modal-btn-confirm {
+            box-shadow: 4px 4px 10px rgba(152, 21, 21, 0.25), -2px -2px 6px var(--nm-dark-shadow-light);
+        }
+        .modal-btn-confirm:hover { background: var(--red-dark); }
+
+        .confirm-modal { max-width: 400px !important; }
+        .confirm-modal h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+        body:not(.mode-finished) .confirm-modal h2 { color: #1c1c1e; }
+        body.mode-finished .confirm-modal h2 { color: #f5f5f7; }
+        .confirm-modal p { font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+        body:not(.mode-finished) .confirm-modal p { color: #636366; }
+        body.mode-finished .confirm-modal p { color: #8e8e93; }
+
+        .auth-modal { max-width: 400px !important; }
+        .auth-modal h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+        body:not(.mode-finished) .auth-modal h2 { color: #1c1c1e; }
+        body.mode-finished .auth-modal h2 { color: #f5f5f7; }
+        .auth-modal .auth-desc { font-size: 13px; margin-bottom: 20px; }
+        body:not(.mode-finished) .auth-modal .auth-desc { color: #8e8e93; }
+        body.mode-finished .auth-modal .auth-desc { color: #636366; }
+        .auth-input {
+            width: 100%; padding: 12px 16px; border-radius: 14px;
+            font-size: 14px; font-family: 'Inter', sans-serif; outline: none;
+            margin-bottom: 12px;
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(0, 0, 0, 0.06); color: #1c1c1e;
+        }
+        body.mode-finished .auth-input {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.08); color: #f5f5f7;
+        }
+        body.mode-finished .auth-input::placeholder { color: #636366; }
+        .auth-input:focus { border-color: rgba(152, 21, 21, 0.3); }
+        .auth-error {
+            font-size: 12px; color: var(--red); margin-bottom: 12px;
+            min-height: 16px;
+        }
+        .auth-switch {
+            font-size: 12px; text-align: center; margin-top: 12px;
+        }
+        body:not(.mode-finished) .auth-switch { color: #8e8e93; }
+        body.mode-finished .auth-switch { color: #636366; }
+        .auth-switch a {
+            color: var(--red); cursor: pointer; text-decoration: none; font-weight: 600;
+        }
+
+        .mini-modal {
+            position: fixed; inset: 0;
+            background: rgba(0, 0, 0, 0.3); backdrop-filter: blur(8px);
+            display: flex; justify-content: center; align-items: center; z-index: 1100;
+        }
+        .mini-modal.hidden { display: none; }
+        .mini-modal-content {
+            border-radius: 24px; padding: 24px 28px; max-width: 380px; width: 90%;
+        }
+        body:not(.mode-finished) .mini-modal-content {
+            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+        body.mode-finished .mini-modal-content {
+            background: rgba(30, 30, 35, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        .mini-modal-content h3 { font-size: 17px; font-weight: 700; margin-bottom: 14px; }
+        body:not(.mode-finished) .mini-modal-content h3 { color: #1c1c1e; }
+        body.mode-finished .mini-modal-content h3 { color: #f5f5f7; }
+        .mini-input {
+            width: 100%; padding: 10px 14px; border-radius: 12px;
+            font-size: 13px; font-family: 'Inter', sans-serif; outline: none;
+            margin-bottom: 10px; background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(0, 0, 0, 0.08); color: #1c1c1e;
+        }
+        body.mode-finished .mini-input {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.08); color: #f5f5f7;
+        }
+        .mini-input:focus { border-color: rgba(152, 21, 21, 0.3); }
+        .mini-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+        .mini-btn {
+            padding: 8px 20px; border-radius: 30px; border: none;
+            font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        .mini-btn-cancel { background: rgba(0, 0, 0, 0.05); color: #8e8e93; }
+        body.mode-finished .mini-btn-cancel { background: rgba(255, 255, 255, 0.06); color: #8e8e93; }
+        .mini-btn-confirm { background: var(--red); color: #fff; }
+        .mini-btn-confirm:hover { background: var(--red-dark); }
+
+        .empty-state {
+            text-align: center; padding: 50px 20px; font-weight: 300;
+            font-size: 15px; width: 100%;
+        }
+        body:not(.mode-finished) .empty-state { color: #aeaeb2; }
+        body.mode-finished .empty-state { color: #636366; }
+        .empty-state i { font-size: 36px; opacity: 0.25; margin-bottom: 12px; display: block; }
+
+        /* 加载遮罩 */
+        .loading-overlay {
+            position: fixed; inset: 0; z-index: 2000;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(8px);
+            display: flex; justify-content: center; align-items: center;
+            color: #8e8e93; font-size: 14px; font-weight: 300;
+        }
+        body.mode-finished .loading-overlay {
+            background: rgba(20, 20, 22, 0.5);
+            color: #636366;
+        }
+        .loading-overlay.hidden { display: none; }
+
+        @media (max-width: 900px) { .card { flex: 0 0 calc(33.33% - 20px); } }
+        @media (max-width: 640px) {
+            .card { flex: 0 0 calc(50% - 20px); }
+            .logo h1 { font-size: 24px; }
+            .toolbar-left { flex-direction: column; align-items: stretch; }
+            .search-wrap { max-width: 100%; }
+            .header-right { gap: 10px; }
+            .modal { padding: 20px 18px; }
+        }
+        @media (max-width: 420px) {
+            .card { flex: 0 0 100%; }
+            body { padding: 12px; }
+            .app { padding: 18px; height: 95vh; border-radius: 32px; }
+            .mode-btn { font-size: 15px; padding: 12px; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .search-wrap { max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <div class="logo"><h1>MyTransformer</h1></div>
+            <div class="header-right">
+                <button class="btn-new" id="btnNew"><i class="fas fa-plus"></i></button>
+                <button class="btn-trash-icon" id="btnTrashIcon" title="回收站">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <button class="btn-user" id="btnUser" title="登录 / 账户">
+                    <i class="fas fa-user"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="mode-switcher">
+            <button class="mode-btn active" data-mode="inspiration">
+                <i class="far fa-lightbulb"></i> 灵感库
+            </button>
+            <button class="mode-btn" data-mode="finished">
+                <i class="fas fa-check-circle"></i> 成品库
+            </button>
+        </div>
+
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <div class="search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="搜索..." id="searchInput" />
+                </div>
+                <div class="tag-group" id="tagGroup"></div>
+            </div>
+            <div class="toolbar-right">
+                <select class="sort-select" id="sortSelect">
+                    <option value="edit">最新编辑</option>
+                    <option value="add">最新添加</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="card-grid" id="cardGrid"></div>
+        </div>
+    </div>
+
+    <!-- 编辑器 -->
+    <div class="modal-overlay hidden" id="editModalOverlay">
+        <div class="modal">
+            <div class="editor-toolbar">
+                <div class="format-switch">
+                    <button class="format-btn active" data-format="h1">标题</button>
+                    <button class="format-btn" data-format="p">正文</button>
+                </div>
+                <div class="tool-divider"></div>
+                <button class="tool-btn" id="btnBold"><i class="fas fa-bold"></i></button>
+                <button class="tool-btn" id="btnItalic"><i class="fas fa-italic"></i></button>
+                <button class="tool-btn" id="btnStrike"><i class="fas fa-strikethrough"></i></button>
+                <div class="tool-divider"></div>
+                <button class="tool-btn" id="btnImage"><i class="far fa-image"></i></button>
+                <button class="tool-btn" id="btnLink"><i class="fas fa-link"></i></button>
+            </div>
+            <div class="editor-area">
+                <div class="editor-content" id="editorContent" contenteditable="true" data-placeholder="开始输入..."></div>
+            </div>
+            <div class="tag-editor">
+                <div class="tag-editor-label">标签</div>
+                <div class="tag-editor-box" id="tagEditorBox">
+                    <input type="text" class="tag-input" id="tagInput" placeholder="输入标签，回车确认..." />
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" id="editCancel">取消</button>
+                <button class="modal-btn modal-btn-confirm" id="editConfirm">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 登录弹窗 -->
+    <div class="modal-overlay hidden" id="authModalOverlay">
+        <div class="modal auth-modal">
+            <h2 id="authTitle">登录</h2>
+            <p class="auth-desc" id="authDesc">登录后，灵感与成品将在云端同步</p>
+            <input type="email" class="auth-input" id="authEmail" placeholder="邮箱" />
+            <input type="password" class="auth-input" id="authPassword" placeholder="密码（至少 6 位）" />
+            <div class="auth-error" id="authError"></div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" id="authCancel">取消</button>
+                <button class="modal-btn modal-btn-confirm" id="authConfirm">登录</button>
+            </div>
+            <div class="auth-switch">
+                <span id="authSwitchText">还没有账号？</span>
+                <a id="authSwitchLink">注册</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 用户菜单 -->
+    <div class="modal-overlay hidden" id="userMenuOverlay">
+        <div class="modal confirm-modal">
+            <h2>我的账户</h2>
+            <p id="userMenuEmail" style="word-break:break-all;"></p>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" id="userMenuClose">关闭</button>
+                <button class="modal-btn modal-btn-confirm" id="userMenuLogout">退出登录</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 插入链接 -->
+    <div class="mini-modal hidden" id="linkModal">
+        <div class="mini-modal-content">
+            <h3>插入链接</h3>
+            <input type="text" class="mini-input" id="linkText" placeholder="显示文字" />
+            <input type="text" class="mini-input" id="linkUrl" placeholder="https://..." />
+            <div class="mini-actions">
+                <button class="mini-btn mini-btn-cancel" id="linkCancel">取消</button>
+                <button class="mini-btn mini-btn-confirm" id="linkConfirm">插入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 插入图片 -->
+    <div class="mini-modal hidden" id="imageModal">
+        <div class="mini-modal-content">
+            <h3>插入图片</h3>
+            <input type="text" class="mini-input" id="imageUrl" placeholder="图片 URL（https://...）" />
+            <div style="text-align:center; margin: 10px 0; font-size:12px; color:#8e8e93;">或</div>
+            <input type="file" id="imageFile" accept="image/*" style="display:none;" />
+            <button class="mini-btn mini-btn-cancel" id="imagePickFile" style="width:100%; background:rgba(0,0,0,0.05); color:#1c1c1e; padding:10px;">
+                <i class="fas fa-upload"></i> 选择本地图片
+            </button>
+            <div class="mini-actions" style="margin-top:16px;">
+                <button class="mini-btn mini-btn-cancel" id="imageCancel">取消</button>
+                <button class="mini-btn mini-btn-confirm" id="imageConfirm">插入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 转为成品 -->
+    <div class="modal-overlay hidden" id="modalOverlay">
+        <div class="modal confirm-modal">
+            <h2>转为成品？</h2>
+            <p>确定要把「<strong id="modalItemTitle"></strong>」从灵感库移到成品库吗？<br/>这个过程不可逆。</p>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" id="modalCancel">取消</button>
+                <button class="modal-btn modal-btn-confirm" id="modalConfirm">确认转换</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 灵感复用 -->
+    <div class="modal-overlay hidden" id="reuseModalOverlay">
+        <div class="modal confirm-modal">
+            <h2>灵感复用</h2>
+            <p>确定要将「<strong id="reuseItemTitle"></strong>」<strong>复制一份</strong>到灵感库吗？<br/>成品库中的原件将保留。</p>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" id="reuseModalCancel">取消</button>
+                <button class="modal-btn modal-btn-confirm" id="reuseModalConfirm">确认复用</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认 -->
+    <div class="modal-overlay hidden" id="deleteModalOverlay">
+        <div class="modal confirm-modal">
+            <h2 id="deleteModalTitle">删除？</h2>
+            <p id="deleteModalDesc">确定要删除吗？</p>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" id="deleteModalCancel">取消</button>
+                <button class="modal-btn modal-btn-confirm" id="deleteModalConfirm">确认删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载遮罩 -->
+    <div class="loading-overlay hidden" id="loadingOverlay">加载中...</div>
+
+    <script>
+        // ================================================================
+        //  Supabase 初始化
+        // ================================================================
+        const SUPABASE_URL = 'https://gqxktdotaqwydypxrqme.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_kccQsNQHXOoSEFXsDLWOKg_AzgZgSPP';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let currentUser = null;
+
+        // ================================================================
+        //  数据状态（内存中缓存，从云端拉取）
+        // ================================================================
+        let data = { inspiration: [], finished: [] };
+        let currentMode = 'inspiration';
+        let selectedTags = [];
+        let searchQuery = '';
+        let sortBy = 'edit';
+
+        // DOM 引用
+        const grid = document.getElementById('cardGrid');
+        const modeBtns = document.querySelectorAll('.mode-btn');
+        const searchInput = document.getElementById('searchInput');
+        const sortSelect = document.getElementById('sortSelect');
+        const body = document.body;
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        // 编辑器
+        const editModalOverlay = document.getElementById('editModalOverlay');
+        const editorContent = document.getElementById('editorContent');
+        const editCancel = document.getElementById('editCancel');
+        const editConfirm = document.getElementById('editConfirm');
+        const tagInput = document.getElementById('tagInput');
+        const tagEditorBox = document.getElementById('tagEditorBox');
+        let editingId = null;
+        let currentTags = [];
+
+        // 登录
+        const authModalOverlay = document.getElementById('authModalOverlay');
+        const authTitle = document.getElementById('authTitle');
+        const authDesc = document.getElementById('authDesc');
+        const authEmail = document.getElementById('authEmail');
+        const authPassword = document.getElementById('authPassword');
+        const authError = document.getElementById('authError');
+        const authCancel = document.getElementById('authCancel');
+        const authConfirm = document.getElementById('authConfirm');
+        const authSwitchText = document.getElementById('authSwitchText');
+        const authSwitchLink = document.getElementById('authSwitchLink');
+        const btnUser = document.getElementById('btnUser');
+        let authMode = 'login'; // 'login' | 'signup'
+
+        // 用户菜单
+        const userMenuOverlay = document.getElementById('userMenuOverlay');
+        const userMenuEmail = document.getElementById('userMenuEmail');
+        const userMenuClose = document.getElementById('userMenuClose');
+        const userMenuLogout = document.getElementById('userMenuLogout');
+
+        // 转换/复用弹窗
+        const modalOverlay = document.getElementById('modalOverlay');
+        const modalItemTitle = document.getElementById('modalItemTitle');
+        const modalCancel = document.getElementById('modalCancel');
+        const modalConfirm = document.getElementById('modalConfirm');
+        let pendingConvertId = null;
+
+        const reuseModalOverlay = document.getElementById('reuseModalOverlay');
+        const reuseItemTitle = document.getElementById('reuseItemTitle');
+        const reuseModalCancel = document.getElementById('reuseModalCancel');
+        const reuseModalConfirm = document.getElementById('reuseModalConfirm');
+        let pendingReuseId = null;
+
+        // 删除
+        const deleteModalOverlay = document.getElementById('deleteModalOverlay');
+        const deleteModalTitle = document.getElementById('deleteModalTitle');
+        const deleteModalDesc = document.getElementById('deleteModalDesc');
+        const deleteModalCancel = document.getElementById('deleteModalCancel');
+        const deleteModalConfirm = document.getElementById('deleteModalConfirm');
+        let pendingDeleteId = null;
+
+        // 链接/图片
+        const linkModal = document.getElementById('linkModal');
+        const linkText = document.getElementById('linkText');
+        const linkUrl = document.getElementById('linkUrl');
+        const linkCancel = document.getElementById('linkCancel');
+        const linkConfirm = document.getElementById('linkConfirm');
+        const imageModal = document.getElementById('imageModal');
+        const imageUrl = document.getElementById('imageUrl');
+        const imageFile = document.getElementById('imageFile');
+        const imagePickFile = document.getElementById('imagePickFile');
+        const imageCancel = document.getElementById('imageCancel');
+        const imageConfirm = document.getElementById('imageConfirm');
+
+        let savedRange = null;
+        function saveSelection() {
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0 && editorContent.contains(sel.anchorNode)) {
+                savedRange = sel.getRangeAt(0).cloneRange();
+            }
+        }
+        function restoreSelection() {
+            if (savedRange) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(savedRange);
+            }
+        }
+
+        // ================================================================
+        //  工具函数
+        // ================================================================
+        function nowISO() { return new Date().toISOString(); }
+        function formatDate(isoStr) {
+            if (!isoStr) return '--';
+            const d = new Date(isoStr);
+            return `${d.getMonth()+1}/${d.getDate()}`;
+        }
+        function stripHtml(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html || '';
+            return tmp.textContent || tmp.innerText || '';
+        }
+        function showLoading() { loadingOverlay.classList.remove('hidden'); }
+        function hideLoading() { loadingOverlay.classList.add('hidden'); }
+
+        // ================================================================
+        //  ☁️ 云端数据读写
+        // ================================================================
+        async function loadFromCloud() {
+            if (!currentUser) {
+                data = { inspiration: [], finished: [] };
+                return;
+            }
+            showLoading();
+            const { data: cards, error } = await supabase
+                .from('cards')
+                .select('*')
+                .order('updated_at', { ascending: false });
+
+            if (error) {
+                console.error('加载失败:', error);
+                alert('加载数据失败：' + error.message);
+                hideLoading();
+                return;
+            }
+
+            data.inspiration = cards
+                .filter(c => c.type === 'inspiration')
+                .map(c => ({
+                    id: c.id,
+                    title: c.title,
+                    html: c.html,
+                    tag: c.tag,
+                    createdAt: c.created_at,
+                    updatedAt: c.updated_at,
+                }));
+            data.finished = cards
+                .filter(c => c.type === 'finished')
+                .map(c => ({
+                    id: c.id,
+                    title: c.title,
+                    html: c.html,
+                    tag: c.tag,
+                    createdAt: c.created_at,
+                    convertedAt: c.converted_at,
+                }));
+            hideLoading();
+        }
+
+        async function insertCard(card) {
+            const { data: inserted, error } = await supabase.from('cards').insert({
+                user_id: currentUser.id,
+                type: card.type,
+                title: card.title,
+                html: card.html,
+                tag: card.tag,
+                converted_at: card.converted_at || null,
+            }).select().single();
+            if (error) { alert('保存失败：' + error.message); return null; }
+            return inserted;
+        }
+
+        async function updateCard(id, updates) {
+            const { error } = await supabase.from('cards').update(updates).eq('id', id);
+            if (error) { alert('更新失败：' + error.message); return false; }
+            return true;
+        }
+
+        async function deleteCard(id) {
+            const { error } = await supabase.from('cards').delete().eq('id', id);
+            if (error) { alert('删除失败：' + error.message); return false; }
+            return true;
+        }
+
+        // ================================================================
+        //  🏷️ Top 3 标签
+        // ================================================================
+        function computeTopTags() {
+            const counter = {};
+            [...data.inspiration, ...data.finished].forEach(item => {
+                (item.tag || '').split(',').map(t => t.trim()).filter(t => t).forEach(t => {
+                    counter[t] = (counter[t] || 0) + 1;
+                });
+            });
+            return Object.entries(counter)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([tag]) => tag);
+        }
+
+        function renderTagBar() {
+            const tagGroup = document.getElementById('tagGroup');
+            const topTags = computeTopTags();
+            selectedTags = selectedTags.filter(t => topTags.includes(t));
+            tagGroup.innerHTML = topTags.map(tag => {
+                const active = selectedTags.includes(tag) ? 'active' : '';
+                return `<span class="tag-chip ${active}" data-tag="${tag}"># ${tag}</span>`;
+            }).join('');
+            tagGroup.querySelectorAll('.tag-chip').forEach(chip => {
+                chip.addEventListener('click', function() {
+                    const t = this.dataset.tag;
+                    if (selectedTags.includes(t)) selectedTags = selectedTags.filter(x => x !== t);
+                    else selectedTags.push(t);
+                    renderTagBar();
+                    render();
+                });
+            });
+        }
+
+        // ================================================================
+        //  核心操作
+        // ================================================================
+        async function convertToFinished(id) {
+            const item = data.inspiration.find(i => i.id === id);
+            if (!item) return;
+            const ok = await updateCard(id, { type: 'finished', converted_at: nowISO() });
+            if (!ok) return;
+            await loadFromCloud();
+            if (currentMode !== 'finished') switchMode('finished');
+            else { renderTagBar(); render(); }
+        }
+
+        async function reuseInspiration(id) {
+            const item = data.finished.find(i => i.id === id);
+            if (!item) return;
+            const inserted = await insertCard({
+                type: 'inspiration',
+                title: item.title,
+                html: item.html,
+                tag: item.tag,
+            });
+            if (!inserted) return;
+            await loadFromCloud();
+            if (currentMode !== 'inspiration') switchMode('inspiration');
+            else { renderTagBar(); render(); }
+        }
+
+        async function moveToTrash(id) {
+            const ok = await deleteCard(id);
+            if (!ok) return;
+            await loadFromCloud();
+            renderTagBar();
+            render();
+        }
+
+        // ================================================================
+        //  渲染
+        // ================================================================
+        function render() {
+            if (!currentUser) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <i class="far fa-user"></i>
+                        请先点击右上角头像登录，开始云端同步 ✨
+                    </div>
+                `;
+                return;
+            }
+
+            let items = currentMode === 'inspiration' ? data.inspiration : data.finished;
+
+            if (selectedTags.length > 0) {
+                items = items.filter(item => {
+                    const itemTags = (item.tag || '').split(',').map(t => t.trim()).filter(t => t);
+                    return selectedTags.every(st => itemTags.includes(st));
+                });
+            }
+
+            if (searchQuery.trim() !== '') {
+                const q = searchQuery.trim().toLowerCase();
+                items = items.filter(item =>
+                    (item.title || '').toLowerCase().includes(q) ||
+                    stripHtml(item.html).toLowerCase().includes(q) ||
+                    (item.tag || '').toLowerCase().includes(q)
+                );
+            }
+
+            if (sortBy === 'edit') {
+                items.sort((a, b) => {
+                    const keyA = a.updatedAt || a.convertedAt || a.createdAt || '';
+                    const keyB = b.updatedAt || b.convertedAt || b.createdAt || '';
+                    return new Date(keyB) - new Date(keyA);
+                });
+            } else {
+                items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            }
+
+            if (items.length === 0) {
+                let msg = '空空如也 ✨';
+                if (selectedTags.length > 0) msg = `没有同时包含 ${selectedTags.map(t => '#' + t).join(' ')} 的卡片`;
+                else if (searchQuery.trim() !== '') msg = '没有匹配的项目';
+                else if (currentMode === 'inspiration') msg = '还没有灵感，点右上角加号开始 ✨';
+                else if (currentMode === 'finished') msg = '还没有成品，从灵感库转换过来吧 🚀';
+                grid.innerHTML = `<div class="empty-state"><i class="far fa-folder-open"></i>${msg}</div>`;
+                return;
+            }
+
+            grid.innerHTML = items.map(item => {
+                const isInspiration = currentMode === 'inspiration';
+                let timeLabel = isInspiration ? '最近编辑 ' : '';
+                let timeValue = isInspiration ? (item.updatedAt || item.createdAt) : (item.convertedAt || item.createdAt);
+                const tags = (item.tag || '').split(',').map(t => t.trim()).filter(t => t);
+                const previewText = stripHtml(item.html).slice(0, 100);
+
+                return `
+                    <div class="card" data-id="${item.id}">
+                        <div class="card-header">
+                            <span class="card-title">${item.title || '未命名'}</span>
+                        </div>
+                        <div class="card-tags-row">
+                            ${tags.map(t => `<span class="card-tag">#${t}</span>`).join('')}
+                        </div>
+                        <div class="card-desc">${previewText || '...'}</div>
+                        <div class="card-meta">
+                            <span><i class="far fa-calendar-alt"></i> ${timeLabel}${formatDate(timeValue)}</span>
+                        </div>
+                        <div class="card-actions">
+                            ${isInspiration ? `
+                                <button class="btn-convert" data-id="${item.id}"><i class="fas fa-arrow-right"></i> 转为成品</button>
+                                <button class="btn-delete" data-id="${item.id}"><i class="far fa-trash-alt"></i></button>
+                            ` : `
+                                <button class="btn-reuse" data-id="${item.id}"><i class="fas fa-copy"></i> 灵感复用</button>
+                                <button class="btn-delete" data-id="${item.id}"><i class="far fa-trash-alt"></i></button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.querySelectorAll('.card').forEach(card => {
+                card.addEventListener('click', function(e) {
+                    if (e.target.closest('button')) return;
+                    const id = parseInt(this.dataset.id);
+                    openEditModal(id);
+                });
+            });
+
+            document.querySelectorAll('.btn-convert').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    openConvertModal(parseInt(this.dataset.id));
+                });
+            });
+            document.querySelectorAll('.btn-reuse').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    openReuseModal(parseInt(this.dataset.id));
+                });
+            });
+            document.querySelectorAll('.btn-delete').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    openDeleteModal(parseInt(this.dataset.id));
+                });
+            });
+        }
+
+        // ================================================================
+        //  编辑器
+        // ================================================================
+        function renderTagPills() {
+            tagEditorBox.querySelectorAll('.tag-pill').forEach(p => p.remove());
+            currentTags.forEach(tag => {
+                const pill = document.createElement('span');
+                pill.className = 'tag-pill';
+                pill.innerHTML = `#${tag} <span class="tag-remove" data-tag="${tag}"><i class="fas fa-times"></i></span>`;
+                tagEditorBox.insertBefore(pill, tagInput);
+            });
+            tagEditorBox.querySelectorAll('.tag-remove').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const t = this.dataset.tag;
+                    currentTags = currentTags.filter(x => x !== t);
+                    renderTagPills();
+                });
+            });
+        }
+
+        tagInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const val = this.value.trim().replace(/^#/, '');
+                if (val && !currentTags.includes(val)) {
+                    currentTags.push(val);
+                    renderTagPills();
+                }
+                this.value = '';
+            } else if (e.key === 'Backspace' && this.value === '' && currentTags.length > 0) {
+                currentTags.pop();
+                renderTagPills();
+            }
+        });
+
+        function openEditModal(id = null) {
+            if (!currentUser) { openAuthModal(); return; }
+            editingId = id;
+            if (id === null) {
+                editorContent.innerHTML = '';
+                currentTags = [];
+            } else {
+                const item = data.inspiration.find(i => i.id === id);
+                if (!item) return;
+                editorContent.innerHTML = item.html || '<p></p>';
+                currentTags = (item.tag || '').split(',').map(t => t.trim()).filter(t => t);
+            }
+            renderTagPills();
+            editModalOverlay.classList.remove('hidden');
+            setTimeout(() => editorContent.focus(), 100);
+        }
+
+        function closeEditModal() {
+            editModalOverlay.classList.add('hidden');
+            editingId = null;
+            currentTags = [];
+        }
+
+        editCancel.addEventListener('click', closeEditModal);
+        editConfirm.addEventListener('click', async function() {
+            const html = editorContent.innerHTML.trim();
+            const plainText = stripHtml(html);
+            let title = '';
+            const h1 = editorContent.querySelector('h1');
+            if (h1) {
+                title = h1.textContent.trim();
+                h1.remove();
+            }
+            if (!title) title = plainText.split('\n')[0].slice(0, 30) || '未命名';
+            const finalHtml = editorContent.innerHTML.trim();
+            const tag = currentTags.length > 0 ? currentTags.join(',') : 'UI';
+
+            if (editingId === null) {
+                showLoading();
+                const inserted = await insertCard({
+                    type: 'inspiration',
+                    title, html: finalHtml || '<p></p>', tag,
+                });
+                hideLoading();
+                if (!inserted) return;
+                closeEditModal();
+                await loadFromCloud();
+                if (currentMode !== 'inspiration') switchMode('inspiration');
+                else { renderTagBar(); render(); }
+            } else {
+                showLoading();
+                const ok = await updateCard(editingId, {
+                    title, html: finalHtml || '<p></p>', tag, updated_at: nowISO(),
+                });
+                hideLoading();
+                if (!ok) return;
+                closeEditModal();
+                await loadFromCloud();
+                renderTagBar();
+                render();
+            }
+        });
+
+        editModalOverlay.addEventListener('click', function(e) {
+            if (e.target === this) closeEditModal();
+        });
+
+        // 格式
+        document.getElementById('btnBold').addEventListener('click', function() {
+            editorContent.focus(); restoreSelection();
+            document.execCommand('bold', false, null); saveSelection();
+        });
+        document.getElementById('btnItalic').addEventListener('click', function() {
+            editorContent.focus(); restoreSelection();
+            document.execCommand('italic', false, null); saveSelection();
+        });
+        document.getElementById('btnStrike').addEventListener('click', function() {
+            editorContent.focus(); restoreSelection();
+            document.execCommand('strikeThrough', false, null); saveSelection();
+        });
+        document.querySelectorAll('.format-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                editorContent.focus(); restoreSelection();
+                if (this.dataset.format === 'h1') document.execCommand('formatBlock', false, 'h1');
+                else document.execCommand('formatBlock', false, 'p');
+                saveSelection();
+            });
+        });
+        editorContent.addEventListener('keyup', saveSelection);
+        editorContent.addEventListener('mouseup', saveSelection);
+        editorContent.addEventListener('blur', saveSelection);
+
+        // 链接/图片
+        document.getElementById('btnLink').addEventListener('click', function() {
+            saveSelection();
+            linkModal.classList.remove('hidden');
+            linkText.value = ''; linkUrl.value = '';
+            setTimeout(() => linkText.focus(), 100);
+        });
+        linkCancel.addEventListener('click', () => linkModal.classList.add('hidden'));
+        linkConfirm.addEventListener('click', function() {
+            const text = linkText.value.trim() || linkUrl.value.trim();
+            const url = linkUrl.value.trim();
+            if (!url) return;
+            editorContent.focus(); restoreSelection();
+            document.execCommand('insertHTML', false, `<a href="${url}" target="_blank">${text}</a>&nbsp;`);
+            linkModal.classList.add('hidden');
+        });
+        linkModal.addEventListener('click', function(e) { if (e.target === this) linkModal.classList.add('hidden'); });
+
+        document.getElementById('btnImage').addEventListener('click', function() {
+            saveSelection();
+            imageModal.classList.remove('hidden');
+            imageUrl.value = ''; imageFile.value = '';
+            imageUrl.placeholder = '图片 URL（https://...）';
+            setTimeout(() => imageUrl.focus(), 100);
+        });
+        imageCancel.addEventListener('click', () => imageModal.classList.add('hidden'));
+        imageModal.addEventListener('click', function(e) { if (e.target === this) imageModal.classList.add('hidden'); });
+        imagePickFile.addEventListener('click', () => imageFile.click());
+        imageFile.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                imageUrl.value = '';
+                imageUrl.placeholder = `已选择：${this.files[0].name}`;
+            }
+        });
+        imageConfirm.addEventListener('click', function() {
+            const url = imageUrl.value.trim();
+            if (imageFile.files && imageFile.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    editorContent.focus(); restoreSelection();
+                    document.execCommand('insertHTML', false, `<img src="${e.target.result}" alt="image" />`);
+                    imageModal.classList.add('hidden');
+                };
+                reader.readAsDataURL(imageFile.files[0]);
+            } else if (url) {
+                editorContent.focus(); restoreSelection();
+                document.execCommand('insertHTML', false, `<img src="${url}" alt="image" />`);
+                imageModal.classList.add('hidden');
+            }
+        });
+
+        // ================================================================
+        //  转换 / 复用 / 删除 弹窗
+        // ================================================================
+        function openConvertModal(id) {
+            const item = data.inspiration.find(i => i.id === id);
+            if (!item) return;
+            pendingConvertId = id;
+            modalItemTitle.textContent = item.title || '未命名';
+            modalOverlay.classList.remove('hidden');
+        }
+        function closeConvertModal() {
+            modalOverlay.classList.add('hidden');
+            pendingConvertId = null;
+        }
+        modalCancel.addEventListener('click', closeConvertModal);
+        modalConfirm.addEventListener('click', async function() {
+            if (pendingConvertId !== null) {
+                const id = pendingConvertId;
+                closeConvertModal();
+                await convertToFinished(id);
+            }
+        });
+        modalOverlay.addEventListener('click', function(e) { if (e.target === this) closeConvertModal(); });
+
+        function openReuseModal(id) {
+            const item = data.finished.find(i => i.id === id);
+            if (!item) return;
+            pendingReuseId = id;
+            reuseItemTitle.textContent = item.title || '未命名';
+            reuseModalOverlay.classList.remove('hidden');
+        }
+        function closeReuseModal() {
+            reuseModalOverlay.classList.add('hidden');
+            pendingReuseId = null;
+        }
+        reuseModalCancel.addEventListener('click', closeReuseModal);
+        reuseModalConfirm.addEventListener('click', async function() {
+            if (pendingReuseId !== null) {
+                const id = pendingReuseId;
+                closeReuseModal();
+                await reuseInspiration(id);
+            }
+        });
+        reuseModalOverlay.addEventListener('click', function(e) { if (e.target === this) closeReuseModal(); });
+
+        function openDeleteModal(id) {
+            const item = [...data.inspiration, ...data.finished].find(i => i.id === id);
+            if (!item) return;
+            pendingDeleteId = id;
+            deleteModalTitle.textContent = '删除？';
+            deleteModalDesc.innerHTML = `确定要删除「<strong>${item.title || '未命名'}</strong>」吗？`;
+            deleteModalOverlay.classList.remove('hidden');
+        }
+        function closeDeleteModal() {
+            deleteModalOverlay.classList.add('hidden');
+            pendingDeleteId = null;
+        }
+        deleteModalCancel.addEventListener('click', closeDeleteModal);
+        deleteModalConfirm.addEventListener('click', async function() {
+            if (pendingDeleteId !== null) {
+                const id = pendingDeleteId;
+                closeDeleteModal();
+                await moveToTrash(id);
+            }
+        });
+        deleteModalOverlay.addEventListener('click', function(e) { if (e.target === this) closeDeleteModal(); });
+
+        // ================================================================
+        //  🔐 登录/注册
+        // ================================================================
+        function openAuthModal() {
+            authMode = 'login';
+            updateAuthUI();
+            authEmail.value = '';
+            authPassword.value = '';
+            authError.textContent = '';
+            authModalOverlay.classList.remove('hidden');
+            setTimeout(() => authEmail.focus(), 100);
+        }
+
+        function updateAuthUI() {
+            if (authMode === 'login') {
+                authTitle.textContent = '登录';
+                authDesc.textContent = '登录后，灵感与成品将在云端同步';
+                authConfirm.textContent = '登录';
+                authSwitchText.textContent = '还没有账号？';
+                authSwitchLink.textContent = '注册';
+            } else {
+                authTitle.textContent = '注册';
+                authDesc.textContent = '注册后，灵感与成品将在云端同步';
+                authConfirm.textContent = '注册';
+                authSwitchText.textContent = '已有账号？';
+                authSwitchLink.textContent = '登录';
+            }
+        }
+
+        authSwitchLink.addEventListener('click', function() {
+            authMode = authMode === 'login' ? 'signup' : 'login';
+            updateAuthUI();
+            authError.textContent = '';
+        });
+
+        authCancel.addEventListener('click', () => authModalOverlay.classList.add('hidden'));
+        authModalOverlay.addEventListener('click', function(e) { if (e.target === this) authModalOverlay.classList.add('hidden'); });
+
+        authConfirm.addEventListener('click', async function() {
+            const email = authEmail.value.trim();
+            const password = authPassword.value.trim();
+            if (!email || !password) { authError.textContent = '请填写邮箱和密码'; return; }
+            if (password.length < 6) { authError.textContent = '密码至少 6 位'; return; }
+            authError.textContent = '';
+            authConfirm.disabled = true;
+            authConfirm.textContent = '处理中...';
+
+            try {
+                if (authMode === 'login') {
+                    const { error } = await supabase.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase.auth.signUp({ email, password });
+                    if (error) throw error;
+                    alert('注册成功！如果开启了邮箱确认，请到邮箱点击链接后再登录。');
+                }
+                authModalOverlay.classList.add('hidden');
+            } catch (err) {
+                authError.textContent = err.message || '操作失败';
+            } finally {
+                authConfirm.disabled = false;
+                updateAuthUI();
+            }
+        });
+
+        // 用户菜单
+        btnUser.addEventListener('click', function() {
+            if (!currentUser) { openAuthModal(); return; }
+            userMenuEmail.textContent = currentUser.email || '已登录';
+            userMenuOverlay.classList.remove('hidden');
+        });
+        userMenuClose.addEventListener('click', () => userMenuOverlay.classList.add('hidden'));
+        userMenuOverlay.addEventListener('click', function(e) { if (e.target === this) userMenuOverlay.classList.add('hidden'); });
+        userMenuLogout.addEventListener('click', async function() {
+            await supabase.auth.signOut();
+            userMenuOverlay.classList.add('hidden');
+        });
+
+        // ================================================================
+        //  模式切换 & 事件
+        // ================================================================
+        function switchMode(mode) {
+            if (mode === currentMode) return;
+            currentMode = mode;
+            body.className = mode === 'finished' ? 'mode-finished' : '';
+            modeBtns.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === mode);
+            });
+            renderTagBar();
+            render();
+        }
+
+        modeBtns.forEach(btn => {
+            btn.addEventListener('click', function() { switchMode(this.dataset.mode); });
+        });
+
+        let searchTimer;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                searchQuery = this.value;
+                render();
+            }, 200);
+        });
+
+        sortSelect.addEventListener('change', function() {
+            sortBy = this.value;
+            render();
+        });
+
+        document.getElementById('btnNew').addEventListener('click', function() {
+            openEditModal(null);
+        });
+
+        // 回收站暂时简化为提示
+        document.getElementById('btnTrashIcon').addEventListener('click', function() {
+            alert('云端版暂时移除了回收站功能，删除即为永久删除。');
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeConvertModal();
+                closeReuseModal();
+                closeEditModal();
+                closeDeleteModal();
+                linkModal.classList.add('hidden');
+                imageModal.classList.add('hidden');
+                authModalOverlay.classList.add('hidden');
+                userMenuOverlay.classList.add('hidden');
+            }
+        });
+
+        // ================================================================
+        //  🚀 启动 & 监听登录状态
+        // ================================================================
+        async function handleAuthChange(session) {
+            if (session && session.user) {
+                currentUser = session.user;
+                btnUser.classList.add('logged-in');
+                btnUser.innerHTML = '<i class="fas fa-user-check"></i>';
+                await loadFromCloud();
+                renderTagBar();
+                render();
+            } else {
+                currentUser = null;
+                btnUser.classList.remove('logged-in');
+                btnUser.innerHTML = '<i class="fas fa-user"></i>';
+                data = { inspiration: [], finished: [] };
+                renderTagBar();
+                render();
+            }
+        }
+
+        supabase.auth.onAuthStateChange((event, session) => {
+            handleAuthChange(session);
+        });
+
+        // 初始化
+        (async function init() {
+            const { data: { session } } = await supabase.auth.getSession();
+            await handleAuthChange(session);
+        })();
+    </script>
+</body>
+</html>
