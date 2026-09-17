@@ -66,7 +66,7 @@
 
         .header-right { display: flex; align-items: center; gap: 14px; }
 
-        .btn-new, .btn-trash-icon, .btn-user {
+        .btn-new, .btn-user {
             width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             font-size: 15px; background: var(--nm-bg);
@@ -80,32 +80,17 @@
             box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.2), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
         }
 
-        .btn-trash-icon { color: #8e8e93; }
-        .btn-trash-icon:hover { color: var(--red); transform: scale(1.05); }
-        .btn-trash-icon:active {
-            transform: scale(0.97);
-            box-shadow: inset 4px 4px 8px var(--nm-shadow-dark), inset -4px -4px 8px var(--nm-shadow-light);
-        }
-        .btn-trash-icon.has-items::after {
-            content: ''; position: absolute; top: 3px; right: 3px;
-            width: 9px; height: 9px; background: var(--red); border-radius: 50%;
-            border: 2px solid var(--nm-bg);
-        }
-
         .btn-user { color: #8e8e93; font-size: 14px; }
         .btn-user:hover { color: var(--red); transform: scale(1.05); }
         .btn-user.logged-in { background: var(--red); color: #fff; }
 
         body.mode-finished .btn-new,
-        body.mode-finished .btn-trash-icon,
         body.mode-finished .btn-user {
             background: var(--nm-dark-bg); color: #8e8e93;
             box-shadow: 4px 4px 10px var(--nm-dark-shadow-dark), -4px -4px 10px var(--nm-dark-shadow-light);
         }
         body.mode-finished .btn-new:hover { background: var(--red); color: #fff; }
-        body.mode-finished .btn-trash-icon:hover { color: #f5f5f7; }
         body.mode-finished .btn-user:hover { color: #f5f5f7; }
-        body.mode-finished .btn-trash-icon.has-items::after { border-color: var(--nm-dark-bg); }
 
         .mode-switcher {
             display: flex; gap: 12px; flex-shrink: 0;
@@ -592,9 +577,6 @@
             <div class="logo"><h1>MyTransformer</h1></div>
             <div class="header-right">
                 <button class="btn-new" id="btnNew"><i class="fas fa-plus"></i></button>
-                <button class="btn-trash-icon" id="btnTrashIcon" title="回收站">
-                    <i class="fas fa-trash"></i>
-                </button>
                 <button class="btn-user" id="btnUser" title="登录 / 账户">
                     <i class="fas fa-user"></i>
                 </button>
@@ -751,7 +733,7 @@
     <!-- 删除确认 -->
     <div class="modal-overlay hidden" id="deleteModalOverlay">
         <div class="modal confirm-modal">
-            <h2 id="deleteModalTitle">删除？</h2>
+            <h2>删除？</h2>
             <p id="deleteModalDesc">确定要删除吗？</p>
             <div class="modal-actions">
                 <button class="modal-btn modal-btn-cancel" id="deleteModalCancel">取消</button>
@@ -765,10 +747,10 @@
 
     <script>
         // ================================================================
-        //  Supabase 初始化（变量名改为 db，避免与全局 supabase 冲突）
+        //  Supabase 初始化
         // ================================================================
         const SUPABASE_URL = 'https://gqxktdotaqwydypxrqme.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_kccQsNQHXOoSEFXsDLWOKg_AzgZgSPP';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxeGt0ZG90YXF3eWR5cHhycW1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2MzI4NTcsImV4cCI6MjEwNTIwODg1N30.6b1emfpw6Ydch5YRjP9cFmkbYHYrtE7wsFu52UGXCVM';
         const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let currentUser = null;
@@ -782,7 +764,6 @@
         let searchQuery = '';
         let sortBy = 'edit';
 
-        // DOM 引用
         const grid = document.getElementById('cardGrid');
         const modeBtns = document.querySelectorAll('.mode-btn');
         const searchInput = document.getElementById('searchInput');
@@ -790,7 +771,6 @@
         const body = document.body;
         const loadingOverlay = document.getElementById('loadingOverlay');
 
-        // 编辑器
         const editModalOverlay = document.getElementById('editModalOverlay');
         const editorContent = document.getElementById('editorContent');
         const editCancel = document.getElementById('editCancel');
@@ -800,7 +780,6 @@
         let editingId = null;
         let currentTags = [];
 
-        // 登录
         const authModalOverlay = document.getElementById('authModalOverlay');
         const authTitle = document.getElementById('authTitle');
         const authDesc = document.getElementById('authDesc');
@@ -814,13 +793,11 @@
         const btnUser = document.getElementById('btnUser');
         let authMode = 'login';
 
-        // 用户菜单
         const userMenuOverlay = document.getElementById('userMenuOverlay');
         const userMenuEmail = document.getElementById('userMenuEmail');
         const userMenuClose = document.getElementById('userMenuClose');
         const userMenuLogout = document.getElementById('userMenuLogout');
 
-        // 转换/复用弹窗
         const modalOverlay = document.getElementById('modalOverlay');
         const modalItemTitle = document.getElementById('modalItemTitle');
         const modalCancel = document.getElementById('modalCancel');
@@ -833,15 +810,12 @@
         const reuseModalConfirm = document.getElementById('reuseModalConfirm');
         let pendingReuseId = null;
 
-        // 删除
         const deleteModalOverlay = document.getElementById('deleteModalOverlay');
-        const deleteModalTitle = document.getElementById('deleteModalTitle');
         const deleteModalDesc = document.getElementById('deleteModalDesc');
         const deleteModalCancel = document.getElementById('deleteModalCancel');
         const deleteModalConfirm = document.getElementById('deleteModalConfirm');
         let pendingDeleteId = null;
 
-        // 链接/图片
         const linkModal = document.getElementById('linkModal');
         const linkText = document.getElementById('linkText');
         const linkUrl = document.getElementById('linkUrl');
@@ -1018,7 +992,7 @@
             else { renderTagBar(); render(); }
         }
 
-        async function moveToTrash(id) {
+        async function deleteCardById(id) {
             const ok = await deleteCard(id);
             if (!ok) return;
             await loadFromCloud();
@@ -1367,7 +1341,6 @@
             const item = [...data.inspiration, ...data.finished].find(i => i.id === id);
             if (!item) return;
             pendingDeleteId = id;
-            deleteModalTitle.textContent = '删除？';
             deleteModalDesc.innerHTML = `确定要删除「<strong>${item.title || '未命名'}</strong>」吗？`;
             deleteModalOverlay.classList.remove('hidden');
         }
@@ -1380,7 +1353,7 @@
             if (pendingDeleteId !== null) {
                 const id = pendingDeleteId;
                 closeDeleteModal();
-                await moveToTrash(id);
+                await deleteCardById(id);
             }
         });
         deleteModalOverlay.addEventListener('click', function(e) { if (e.target === this) closeDeleteModal(); });
@@ -1497,10 +1470,6 @@
 
         document.getElementById('btnNew').addEventListener('click', function() {
             openEditModal(null);
-        });
-
-        document.getElementById('btnTrashIcon').addEventListener('click', function() {
-            alert('云端版暂时移除了回收站功能，删除即为永久删除。');
         });
 
         document.addEventListener('keydown', function(e) {
