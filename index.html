@@ -94,7 +94,7 @@
 
         .btn-user { color: #8e8e93; font-size: 14px; }
         .btn-user:hover { color: var(--red); transform: scale(1.05); }
-        .btn-user.logged-in { color: var(--red); background: var(--red); color: #fff; }
+        .btn-user.logged-in { background: var(--red); color: #fff; }
 
         body.mode-finished .btn-new,
         body.mode-finished .btn-trash-icon,
@@ -318,7 +318,6 @@
         .btn-delete:hover { color: #1c1c1e; }
         body.mode-finished .btn-delete:hover { color: #f5f5f7; }
 
-        /* 弹窗 */
         .modal-overlay {
             position: fixed; inset: 0;
             background: rgba(0, 0, 0, 0.25); backdrop-filter: blur(16px);
@@ -498,14 +497,10 @@
             font-size: 12px; color: var(--red); margin-bottom: 12px;
             min-height: 16px;
         }
-        .auth-switch {
-            font-size: 12px; text-align: center; margin-top: 12px;
-        }
+        .auth-switch { font-size: 12px; text-align: center; margin-top: 12px; }
         body:not(.mode-finished) .auth-switch { color: #8e8e93; }
         body.mode-finished .auth-switch { color: #636366; }
-        .auth-switch a {
-            color: var(--red); cursor: pointer; text-decoration: none; font-weight: 600;
-        }
+        .auth-switch a { color: var(--red); cursor: pointer; text-decoration: none; font-weight: 600; }
 
         .mini-modal {
             position: fixed; inset: 0;
@@ -559,7 +554,6 @@
         body.mode-finished .empty-state { color: #636366; }
         .empty-state i { font-size: 36px; opacity: 0.25; margin-bottom: 12px; display: block; }
 
-        /* 加载遮罩 */
         .loading-overlay {
             position: fixed; inset: 0; z-index: 2000;
             background: rgba(255, 255, 255, 0.5);
@@ -771,16 +765,16 @@
 
     <script>
         // ================================================================
-        //  Supabase 初始化
+        //  Supabase 初始化（变量名改为 db，避免与全局 supabase 冲突）
         // ================================================================
         const SUPABASE_URL = 'https://gqxktdotaqwydypxrqme.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_kccQsNQHXOoSEFXsDLWOKg_AzgZgSPP';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let currentUser = null;
 
         // ================================================================
-        //  数据状态（内存中缓存，从云端拉取）
+        //  数据状态
         // ================================================================
         let data = { inspiration: [], finished: [] };
         let currentMode = 'inspiration';
@@ -818,7 +812,7 @@
         const authSwitchText = document.getElementById('authSwitchText');
         const authSwitchLink = document.getElementById('authSwitchLink');
         const btnUser = document.getElementById('btnUser');
-        let authMode = 'login'; // 'login' | 'signup'
+        let authMode = 'login';
 
         // 用户菜单
         const userMenuOverlay = document.getElementById('userMenuOverlay');
@@ -901,7 +895,7 @@
                 return;
             }
             showLoading();
-            const { data: cards, error } = await supabase
+            const { data: cards, error } = await db
                 .from('cards')
                 .select('*')
                 .order('updated_at', { ascending: false });
@@ -937,7 +931,7 @@
         }
 
         async function insertCard(card) {
-            const { data: inserted, error } = await supabase.from('cards').insert({
+            const { data: inserted, error } = await db.from('cards').insert({
                 user_id: currentUser.id,
                 type: card.type,
                 title: card.title,
@@ -950,13 +944,13 @@
         }
 
         async function updateCard(id, updates) {
-            const { error } = await supabase.from('cards').update(updates).eq('id', id);
+            const { error } = await db.from('cards').update(updates).eq('id', id);
             if (error) { alert('更新失败：' + error.message); return false; }
             return true;
         }
 
         async function deleteCard(id) {
-            const { error } = await supabase.from('cards').delete().eq('id', id);
+            const { error } = await db.from('cards').delete().eq('id', id);
             if (error) { alert('删除失败：' + error.message); return false; }
             return true;
         }
@@ -1440,10 +1434,10 @@
 
             try {
                 if (authMode === 'login') {
-                    const { error } = await supabase.auth.signInWithPassword({ email, password });
+                    const { error } = await db.auth.signInWithPassword({ email, password });
                     if (error) throw error;
                 } else {
-                    const { error } = await supabase.auth.signUp({ email, password });
+                    const { error } = await db.auth.signUp({ email, password });
                     if (error) throw error;
                     alert('注册成功！如果开启了邮箱确认，请到邮箱点击链接后再登录。');
                 }
@@ -1465,7 +1459,7 @@
         userMenuClose.addEventListener('click', () => userMenuOverlay.classList.add('hidden'));
         userMenuOverlay.addEventListener('click', function(e) { if (e.target === this) userMenuOverlay.classList.add('hidden'); });
         userMenuLogout.addEventListener('click', async function() {
-            await supabase.auth.signOut();
+            await db.auth.signOut();
             userMenuOverlay.classList.add('hidden');
         });
 
@@ -1505,7 +1499,6 @@
             openEditModal(null);
         });
 
-        // 回收站暂时简化为提示
         document.getElementById('btnTrashIcon').addEventListener('click', function() {
             alert('云端版暂时移除了回收站功能，删除即为永久删除。');
         });
@@ -1544,13 +1537,12 @@
             }
         }
 
-        supabase.auth.onAuthStateChange((event, session) => {
+        db.auth.onAuthStateChange((event, session) => {
             handleAuthChange(session);
         });
 
-        // 初始化
         (async function init() {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await db.auth.getSession();
             await handleAuthChange(session);
         })();
     </script>
